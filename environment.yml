@@ -1,0 +1,42 @@
+# Conda environment for MarQual-ST
+#   conda env create -f environment.yml        (or: mamba / micromamba create -f environment.yml)
+#   conda activate marqual-st
+#   pip install --no-deps -e .                 (from this folder; adds the marqual-st command)
+#
+# The compiled libraries (numpy, scipy, h5py, pyarrow, scikit-learn, ...) come from conda-forge:
+# conda picks builds that run on the system's C library, including older Linux (glibc 2.17,
+# CentOS 7 / RHEL 7), where the pip wheels of numpy 2.3 / scipy 1.17 do not run and pip would
+# try to compile them. pip only adds pure-Python packages, pandas and pypdfium2, from prebuilt
+# wheels (--only-binary: it never compiles).
+# Versions: the combination the package is tested with (tests/ and CI).
+# The same environment is used by CI and the Docker image; each image tag (sha-<commit>, <version>)
+# freezes every package version of a release.
+name: marqual-st
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.11.13
+  - pip
+  - numpy=2.3.5
+  - scipy=1.17.0
+  - matplotlib-base=3.10.8
+  - statsmodels=0.14.6
+  - pillow=12.0.0
+  - scanpy=1.11.5
+  - squidpy=1.7.0
+  # numba 0.68.0 (conda-forge) fails in sc.pp.calculate_qc_metrics on CentOS 7 with numpy 2.3.5
+  # ("'NoneType' object has no attribute 'args'"); 0.63.1 works there
+  - numba=0.63.1
+  - llvmlite=0.46.0
+  - geopandas                 # for esda / libpysal (brings shapely, pyproj, pyogrio)
+  - beautifulsoup4            # for libpysal
+  # squidpy 1.7.0 -> spatialdata -> xarray_schema imports pkg_resources, removed in setuptools 81
+  - setuptools<81
+  - pip:
+      - "--only-binary=:all:"
+      - pandas==2.2.3
+      - anndata==0.12.8
+      - esda==2.9.0
+      - libpysal==4.14.1
+      - pypdfium2==5.14.0       # report previews of the PDF figures

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>MarQual-ST Report Guide</title>
+<style>
+@page { size: Letter; margin: 16mm 16mm 18mm 16mm; }
+:root { --ink:#1b1b19; --muted:#5f5e59; --line:#dcdbd4; --accent:#2a5bd7; --good:#e3f2e6; --goodink:#1d6b34;
+        --bad:#fbe9e7; --badink:#a3321f; --warn:#fff4dc; --warnink:#7a5200; --panel:#f6f6f3; }
+* { box-sizing: border-box; }
+body { font: 10.2pt/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); margin: 0; }
+h1 { font-size: 22pt; margin: 0 0 4px; letter-spacing: -0.2px; }
+h2 { font-size: 14.5pt; margin: 18px 0 6px; padding-top: 6px; border-top: 2px solid var(--ink); break-after: avoid; }
+h3 { font-size: 11pt; margin: 12px 0 4px; break-after: avoid; }
+p { margin: 4px 0 7px; }
+.sub { color: var(--muted); font-size: 10.5pt; margin-bottom: 10px; }
+.lead { font-size: 10.8pt; }
+table { border-collapse: collapse; width: 100%; margin: 6px 0 10px; font-size: 9.2pt; break-inside: avoid; }
+th, td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 650; }
+td:first-child { white-space: nowrap; }
+code { font: 8.8pt/1.3 ui-monospace, Menlo, Consolas, monospace; background: var(--panel); padding: 0 3px; border-radius: 3px; }
+.box { border: 1px solid var(--line); border-radius: 6px; padding: 8px 11px; margin: 8px 0 10px; background: var(--panel); break-inside: avoid; }
+.box b.t { display: block; font-size: 8.4pt; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.warnbox { background: var(--warn); border-color: #e2b855; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; break-inside: avoid; }
+.two .box { margin: 0; }
+figure { margin: 8px 0 10px; break-inside: avoid; }
+figure img { width: 100%; border: 1px solid var(--line); border-radius: 4px; display: block; }
+figure.half img { width: 62%; margin: 0 auto; }
+figure.third img { width: 48%; margin: 0 auto; }
+figcaption { font-size: 8.6pt; color: var(--muted); margin-top: 3px; }
+.v { font-weight: 700; padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
+.good { background: var(--good); color: var(--goodink); }
+.bad { background: var(--bad); color: var(--badink); }
+.border { background: var(--warn); color: var(--warnink); }
+ol, ul { margin: 3px 0 8px 18px; padding: 0; }
+li { margin: 2px 0; }
+.toc { columns: 2; font-size: 9.6pt; margin: 6px 0 4px 18px; }
+.pb { break-before: page; }
+.small { font-size: 8.8pt; color: var(--muted); }
+</style></head><body>
+
+<h1>Reading the MarQual-ST Report</h1>
+<div class="sub">A guide to every section of the HTML report <code>{sample}_QCreport.html</code> (in the <code>figures/</code> folder): what each step does, what its statistics mean, how to read them biologically, and what to check before calling something a finding. It applies to any run of the pipeline, on any sample or marker panel. Example figures are illustrations from a test run and do not describe a real sample.</div>
+
+<div class="box"><b class="t">What the pipeline is for</b>
+Low-quality spatial data (few reads per bin, strong technical depth variation) often cannot be clustered: clusters mostly follow sequencing depth. The pipeline starts instead from known marker gene sets and asks:
+<ol>
+<li><b>Niche discovery</b> - where in the tissue is each marker set enriched, which other genes mark those places, which bins hold several cell types, and do two cell types occupy the same places?</li>
+<li><b>Qualitative QC</b> - does each marker set show real spatial structure, more than random genes and more than sequencing depth would give? This complements the usual per-bin QC (counts, genes, mito %).</li>
+</ol></div>
+
+<p><b>Report layout.</b></p>
+<ul class="toc">
+<li>Overview - key numbers and all verdicts</li>
+<li>1 · Technical QC</li>
+<li>2 · Spatial structure of marker sets (Moran's I)</li>
+<li>3 · Niches and differential expression</li>
+<li>4 · Cell-type annotation</li>
+<li>5 · Co-localization of cell types</li>
+<li>6 · Gene-pair co-localization (optional step)</li>
+<li>7 · Other files</li>
+</ul>
+<p class="small">Sections 2, 3, 5 and 6 list one row per marker set, niche or pair with its key numbers (verdict, z, q; or bins, depth AUROC and number of up-regulated genes); click a row to open its maps, plots and tables, or use <b>Expand all</b> / <b>Collapse all</b> at the top. Printing the report opens every row. Tables scroll inside their box. The report only organizes files in the <code>figures/</code> folder; nothing is recomputed. Every table links to its full CSV. Running <code>marqual-st gene-pairs -p params.csv -m marker_sets.csv</code> rebuilds the report with section 6 added; <code>marqual-st report -p params.csv</code> rebuilds it on its own.</p>
+
+<h2>Ideas used throughout the report</h2>
+<table>
+<tr><th style="width:22%">Idea</th><th>What it means and why it matters</th></tr>
+<tr><td>Sequencing depth</td><td>Reads captured per bin (<code>total_counts</code>). Deeper bins detect more genes of every kind, so any marker score partly measures depth. Every test therefore removes depth: the score is regressed on log(1 + total counts) and only the residual - what depth cannot explain - is tested ("depth-corrected").</td></tr>
+<tr><td>Signature score</td><td>Per bin, the mean log-normalized expression of the markers present in the data. Markers missing from the data are dropped (see <i>marker coverage</i>).</td></tr>
+<tr><td>Moran's I</td><td>Spatial autocorrelation: do neighbouring bins (the 8 surrounding bins) have more similar scores than random pairs of bins? 0 = no spatial pattern, larger = smoother, more clustered pattern. In sparse data even real niches give small values (often 0.01-0.2).</td></tr>
+<tr><td>Random-gene-set null</td><td>The same statistic computed for many random gene sets matched to the markers in size and expression level (default 1,000 sets). The observed value is judged against this distribution, not against 0: "is there more pattern than ordinary genes of the same expression level show?" Every gene follows tissue architecture to some degree, so this is the meaningful comparison.</td></tr>
+<tr><td>Empirical p, z</td><td>p = share of random sets at least as extreme as the markers (smallest possible value 1/(N+1), e.g. 0.001 with 1,000 sets). z = (observed − null mean) / null SD, an effect size: how many standard deviations above random genes.</td></tr>
+<tr><td>Simulation noise</td><td>An empirical p from N random sets is itself an estimate. Its 95% range is about p ± 1.96·√(p(1−p)/N): with 1,000 sets, p = 0.044 could be anywhere from 0.031 to 0.057. A result this close to 0.05 can fall on either side with a different random seed.</td></tr>
+<tr><td>FDR q and the test family</td><td>Benjamini-Hochberg-adjusted p across all marker sets (or all pairs) tested <i>together in the run</i> - the column <code>n_tested</code>. Adding marker sets makes the correction stricter; removing sets after seeing the results makes it looser. Decide the list of marker sets before looking at results and report all of them.</td></tr>
+<tr><td>Depth R²</td><td>Fraction of the score's variance explained by depth. Small values (e.g. &lt; 0.05) mean raw and depth-corrected scores are nearly identical, so a difference between their verdicts is not a depth effect.</td></tr>
+<tr><td>Depth AUROC</td><td>Probability that a random bin of region A is deeper than a random bin of region B. 0.5 = same depth. Differential expression is run on bins matched for depth, so that AUROC ≈ 0.5.</td></tr>
+</table>
+
+<h2>Overview</h2>
+<p>Cards give the size and quality of the data after filtering: bins, median total counts and genes per bin, tissue sections (set / found), stray bins, the depth ratio between sections, and how many bins received a cell-type label. The <b>Verdicts</b> table lists every test with its verdict and the numbers behind it (z, p, q, the number of random gene sets, depth R²). A note above the table states which marker sets and pairs form each FDR family.</p>
+<table>
+<tr><th>Colour</th><th>Verdicts</th><th>Read as</th></tr>
+<tr><td><span class="v good">green</span></td><td>PASS, CO-LOCALIZED</td><td>Significant at FDR q &lt; 0.05.</td></tr>
+<tr><td><span class="v bad">red</span></td><td>NO_SPATIAL_SIGNAL, DEPTH_DRIVEN, MASKED_BY_DEPTH, SEGREGATED</td><td>No structure beyond random genes, or a depth-specific pattern (see section 2). SEGREGATED is a significant result - the two cell types avoid each other.</td></tr>
+<tr><td>uncoloured</td><td>NOT_DISTINGUISHABLE_FROM_RANDOM</td><td>No evidence of co-localization or segregation.</td></tr>
+</table>
+<div class="box warnbox"><b class="t">Before you read any verdict</b>A verdict is a yes/no cut at q &lt; 0.05. Always read it with the numbers next to it - z, p, q, the number of marker sets tested together, depth R² - as described in <b>"Reading a verdict"</b> (section 2). A PASS with z = 2 and q = 0.04 is a much weaker statement than a PASS with z = 15 and q = 0.001, and it is the weak ones that change when the list of marker sets changes.</div>
+
+<h2>1 · Technical QC</h2>
+<p><b>What it does.</b> Marker-independent. Finds tissue sections and stray pieces on the <i>unfiltered</i> bins (so holes left by filtering cannot split a section), then filters bins and genes, then maps depth on the filtered bins. Files: <code>technical_qc_summary.csv</code>, <code>stray_pieces.csv</code>, <code>section_depth_summary.csv</code> (only when sections are a technical variable), and two maps.</p>
+<figure class="half"><img src="img/spatial_qc_depth_maps.png" style="width:72%"><figcaption>Depth maps (example): log1p total counts (left) and genes per bin (right). The two maps should look alike. Look for straight-edged rectangles - imaging fields of view (FOVs) with different capture efficiency.</figcaption></figure>
+<div class="two">
+<div class="box"><b class="t">Statistically</b>Depth is usually strongly spatially structured (the total-counts Moran's I in section 2 is typically far above any marker set). Any marker score inherits part of that pattern, which is why every later test removes depth.</div>
+<div class="box"><b class="t">Biologically</b>Some depth variation is real (cell-dense or transcriptionally active tissue captures more RNA), some is technical (FOV exposure, section thickness, permeabilization). The pipeline removes all depth-explained variation - conservative: biology that runs purely through depth is lost too.</div>
+</div>
+<figure class="third"><img src="img/spatial_qc_depth_highpass.png" style="width:40%"><figcaption>High-pass depth map: log total counts minus its smooth regional trend (σ = 10 bins). Red = deeper, blue = shallower than the surroundings. Local technical edges (FOV borders, folds, tears) stand out.</figcaption></figure>
+<ul>
+<li><b>Strays</b> are pieces separate from the main section(s) before filtering (debris, detached fragments). They are labelled (<code>obs["stray"]</code>), never removed.</li>
+<li><b>Tissue sections</b> (<code>sections.num_tissue</code> &gt; 1) are the largest connected pieces. With <code>sections.tissue_qc</code> on, they are a technical variable: their depth is compared and co-localization is re-tested within sections (section 5). Turn it off when sections are biologically different (e.g. disease stages) - otherwise real differences are removed.</li>
+<li>An amber alert "only N section(s) hold the filtered bins" means the sections touch in the unfiltered data and could not be separated; the within-section control is then not informative.</li>
+<li>If a result coincides with one FOV rectangle on the high-pass map, re-test without those bins.</li>
+</ul>
+
+<h2>2 · Spatial structure of marker sets (Moran's I)</h2>
+<p><b>What it does.</b> For each marker set: signature score per bin → Moran's I of the score, and of the depth-corrected score → each compared against the random-gene-set null. The index table <code>all_celltypes_moran_index_table.csv</code> holds the results, FDR across the marker sets of the run (<code>n_tested</code>), and the <code>qc_verdict</code>.</p>
+<figure class="half"><img src="img/spatialimmune_smooth.png" style="width:55%"><figcaption>Signature score, raw (left) and lightly smoothed (σ = 1 bin, right). Smoothing is for viewing and for defining the niche (section 3); it is never used for significance.</figcaption></figure>
+<div class="box"><b class="t">Why not the usual p-value?</b>The analytic Moran's I p-value (squidpy, <code>{celltype}_moran_stats.csv</code>) is shown for reference only. With ~10<sup>5</sup> bins it is ≈ 0 for almost any I &gt; 0: it asks "is there any spatial pattern at all?", and in tissue the answer is always yes. The random-gene-set test asks the useful question.</div>
+
+<h3>How the verdict is decided</h3>
+<p>Each marker set gets two calls at FDR q &lt; 0.05 - one for the raw score, one for the depth-corrected score - and the pair becomes the verdict:</p>
+<table>
+<tr><th>qc_verdict</th><th>Raw / depth-corrected</th><th>Meaning</th></tr>
+<tr><td><span class="v good">PASS</span></td><td>significant / significant</td><td>Spatial structure beyond random genes of matched expression, and it survives depth removal: the panel marks a candidate niche.</td></tr>
+<tr><td><span class="v bad">DEPTH_DRIVEN</span></td><td>significant / not</td><td>The apparent pattern is the depth pattern (edges, folds, RNA-rich regions). Do not interpret it biologically.</td></tr>
+<tr><td><span class="v bad">MASKED_BY_DEPTH</span></td><td>not / significant</td><td>Depth variation hid a marker pattern that appears once depth is removed. Real but weaker and less robust than PASS.</td></tr>
+<tr><td><span class="v bad">NO_SPATIAL_SIGNAL</span></td><td>not / not</td><td>No structure beyond random genes: the cell type is absent, too sparse to detect, or randomly placed.</td></tr>
+<tr><td>…;LOW_MARKER_COVERAGE</td><td>&lt; 50% of requested markers in the data</td><td>The score rests on a reduced panel; check which markers are missing.</td></tr>
+</table>
+<h3 id="reading">Reading a verdict: look at the other indicators</h3>
+<p>The verdict applies a single cut (q &lt; 0.05) to one number. Results just either side of the cut carry almost the same evidence but get different labels, and a result near the cut can change label between runs even when its own statistics do not change at all.</p>
+<div class="box"><b class="t">Example - why a verdict can change with the list of marker sets</b>
+A marker set has a depth-corrected empirical p = 0.044 (1,000 random gene sets, z = 1.3). Tested together with one other marker set, its q is 0.044 → significant. Tested together with twelve others, its q becomes 0.068 → NO_SPATIAL_SIGNAL. Its Moran's I, z and p are <i>identical</i> in both runs; only the multiple-testing correction changed. Neither verdict is wrong - the evidence is weak, and the numbers show it: z is small and p sits within the simulation noise of 0.05 (0.031-0.057). Strong results (e.g. z &gt; 10, p = 0.001) keep the same verdict whatever the list.</div>
+<table style="break-inside:auto">
+<tr><th style="width:24%">Indicator (column)</th><th>What to look at</th></tr>
+<tr><td>z (<code>z_score_resid</code>)</td><td>Effect size: distance above random genes in null SDs. Does not depend on how many sets were tested, so it is comparable across marker sets and runs. As a rule of thumb, z ≥ 3 is strong, 2-3 moderate, below 2 weak.</td></tr>
+<tr><td>p (<code>empirical_p_value_resid</code>)</td><td>How close to 0.05 before correction. With 1,000 random gene sets, p within about ±0.013 of 0.05 (≈ 0.035-0.065) can land on either side with another random seed. To settle such a case, rerun that marker set alone with more random gene sets, e.g. <code>statistics.n_null: 10000</code> in a config that lists only that marker set (or <code>RandomGeneSetNullTest(outdir, n_null=10000)</code> in Python).</td></tr>
+<tr><td>q and <code>n_tested</code></td><td>How far q is from 0.05, and how many marker sets were corrected together. q between about 0.05 and 0.10 is weak evidence, not proof of absence. Compare verdicts between runs only when the marker-set lists are the same.</td></tr>
+<tr><td>Raw vs depth-corrected, <code>depth_R2</code></td><td>DEPTH_DRIVEN and MASKED_BY_DEPTH mean the two calls differ. Check depth R²: if it is tiny (e.g. &lt; 0.05), the raw and depth-corrected scores are nearly the same and the difference is threshold noise - judge the set by the depth-corrected z and q. A real depth effect shows a large depth R² and a clear change of I and z between the two tests.</td></tr>
+<tr><td>Null distribution plot</td><td>Observed value (red) far to the right of the random-gene histogram = clear; at its right edge = weak.</td></tr>
+<tr><td><code>marker_coverage</code></td><td>A score built from few markers is noisier; check which requested markers are missing.</td></tr>
+<tr><td>Map, niche and DE</td><td>Does the smoothed score form coherent regions (not scattered speckle)? Do the panel's own markers lead the niche DE list (section 3)? Agreement makes a weak statistic more credible; its absence makes a significant one less so.</td></tr>
+</table>
+<table>
+<tr><th style="width:18%">Evidence</th><th style="width:44%">Typical numbers</th><th>How to report</th></tr>
+<tr><td>Strong</td><td>q ≤ 0.01 and z ≥ 3</td><td>A finding; stable to the list of marker sets and the random seed.</td></tr>
+<tr><td>Moderate</td><td>q &lt; 0.05, z about 2-3, p clearly away from 0.05</td><td>A finding, reported with its numbers.</td></tr>
+<tr><td>Weak</td><td>q about 0.03-0.10, or p within ±0.013 of 0.05, or z &lt; 2</td><td>Suggestive only, whatever the verdict says; confirm with more random gene sets or independent evidence before building on it.</td></tr>
+<tr><td>None</td><td>q &gt; 0.10 and z around 0 or below</td><td>No evidence of spatial structure.</td></tr>
+</table>
+<p class="small">The same reading applies to co-localization (section 5): p_colocalized, q_colocalized, z_swapA / z_swapB and the number of pairs tested.</p>
+<div class="two">
+<figure style="margin:0"><img src="img/immune_null_distribution_plot_resid.png"><figcaption>Null distribution (depth-corrected): blue = Moran's I of random gene sets, red dashed = the marker set. The further to the right of the histogram, the stronger the evidence.</figcaption></figure>
+<div>
+<p><b>Other items in this section</b></p>
+<ul>
+<li><b>Baseline: Moran's I of total counts</b> - how spatially structured depth itself is. A marker set with raw I close to this baseline and large depth R² is suspicious.</li>
+<li><b>Score vs total counts</b> (Spearman ρ) - a non-spatial check of how much the score tracks depth.</li>
+<li><b>Summary chart</b> - Moran's I per marker set (depth-corrected), blue when q &lt; 0.05, grey otherwise, each bar labelled with I and q.</li>
+</ul></div>
+</div>
+<figure class="third"><img src="img/morans_i_summary_chart.png" style="width:52%"><figcaption>Summary chart (example with 13 marker sets). Bar length is Moran's I; colour is q &lt; 0.05. Several grey or blue bars sit near the cut (q ≈ 0.02-0.07) - read those with the indicators above. Note how small I can be for a real but sparse cell type.</figcaption></figure>
+<div class="two">
+<div class="box"><b class="t">Statistically</b>Compare z across marker sets, not only verdicts: z says how far beyond random genes a set is. Verdicts near q = 0.05 can change when marker sets are added or removed, because q depends on the whole family; strong results (large z, q ≪ 0.05) do not.</div>
+<div class="box"><b class="t">Biologically</b>PASS says the marker panel is spatially organized - consistent with a localized cell population or niche. NO_SPATIAL_SIGNAL does not prove the cell type is absent; sparse or dispersed cell types (e.g. circulating lymphocytes) can be present without a spatial pattern.</div>
+</div>
+
+<h2>3 · Niches and differential expression</h2>
+<p><b>What it does.</b> Defines where each marker set is enriched, checks that region and background are comparable in depth, and finds genes that mark the region. Two region definitions, one block each:</p>
+<table>
+<tr><th>Region</th><th>Definition</th><th>Claim per bin</th></tr>
+<tr><td><code>{celltype}_niche</code><br>strategy 1</td><td>Top 5% of bins by the smoothed signature score.</td><td>"This bin shows coordinated, panel-wide enrichment." High confidence; used for the cell-type annotation (section 4).</td></tr>
+<tr><td><code>{celltype}_enriched_region</code><br>strategy 2</td><td>Bins where at least one marker (default) is detected.</td><td>"This bin shows any signal from the panel." High sensitivity, weak per-bin claim; often covers most of the tissue.</td></tr>
+</table>
+<figure class="third"><img src="img/spatial_immune_niche_mask.png" style="width:38%"><figcaption>Niche mask (red) vs background (grey).</figcaption></figure>
+<h3>Depth check and depth matching</h3>
+<p><code>{name}_depth_check.csv</code> compares median total counts and genes of region vs background and reports the depth AUROC. Marker-defined regions are nearly always deeper (more reads → more markers detected). Bins are then matched within depth deciles; <code>{name}_depth_check_after_matching.csv</code> should show AUROC ≈ 0.5. Only the matched bins enter the DE, so DE genes cannot be explained by depth. A warning of fewer than 50 matched bins per group means the region covers almost everything of comparable depth - the region definition is too permissive for DE.</p>
+<h3>DE tables and the dot plot</h3>
+<p>Wilcoxon rank-sum per gene, Benjamini-Hochberg across genes; a gene is significant at adjusted p &lt; 0.05 and |log2 fold change| &gt; 0.5. <code>{name}_de_genes.csv</code> has every gene; <code>{name}_de_top20.csv</code> the top 20 up- and top 20 down-regulated significant genes.</p>
+<figure class="half"><img src="img/immune_niche_de_top20_dotplot.png"><figcaption>Top up-regulated genes (up to 20, by log fold change; all of them if fewer are significant), on the depth-matched bins. Dot size = fraction of bins where the gene is detected; colour = mean log-normalized expression.</figcaption></figure>
+<div class="two">
+<div class="box"><b class="t">Statistically</b>With thousands of bins per group, tiny differences are significant; rank genes by fold change and detection fraction, not p-value. A good marker is detected in many more niche bins than background bins (big dot above, small dot below).</div>
+<div class="box"><b class="t">Biologically</b>Expect the panel's own markers near the top - a sanity check. Non-marker genes that rise with them are candidates for the niche's other cell types or states (e.g. stromal, vascular, or inflammatory programs) and are the starting point for annotation and follow-up.</div>
+</div>
+
+<h2>4 · Cell-type annotation</h2>
+<p><b>What it does.</b> Labels every bin from the high-confidence niches (strategy 1). Bin data hold several cells per bin, so a bin can belong to several niches:</p>
+<table>
+<tr><th>Bin is in …</th><th>Label</th></tr>
+<tr><td>one niche</td><td>that cell type, e.g. <code>NK</code> - kept however few bins it has</td></tr>
+<tr><td>several niches</td><td>names joined in the order of the marker sets, e.g. <code>NK_Neuron</code>, <code>B_NK_Neuron</code></td></tr>
+<tr><td>several niches, combination rare</td><td><code>Mix</code> - <b>bins annotated with several cell types whose combination has fewer than 100 bins</b> (<code>annotation.min_bins</code>)</td></tr>
+<tr><td>no niche</td><td><code>Structural Base</code></td></tr>
+</table>
+<div class="two">
+<figure style="margin:0"><img src="img/spatial_celltype_annotation.png"><figcaption>Annotation map (example; minimum 50 bins for illustration).</figcaption></figure>
+<figure style="margin:0"><img src="img/celltype_annotation_bin_counts.png"><figcaption>Bins per label (Structural Base count in the title), with the Mix note.</figcaption></figure>
+</div>
+<p><b>Plots show at most 15 colours.</b> With many marker sets there can be dozens of combinations, and more than about 15 colours cannot be told apart. The map and the bar chart keep a colour for the largest labels by number of bins and plot all smaller labels as <b>Mix</b>, so Mix takes one of the 15 colours (<code>annotation.max_plot_labels</code> in the config). In the plots, Mix therefore holds the rare combinations (fewer than 100 bins) <i>and</i> every label below the plotting cutoff. The cutoff - the bin count of the smallest label with its own colour - is printed, stated in the plot titles and in the report ("Plots show the 14 largest labels in colour (≥ X bins each); the other N labels are plotted as Mix"). Nothing is lost: every label stays in the saved h5ad.</p>
+<p>Files: <code>celltype_annotation_counts.csv</code> (bins per label, rank, <code>plotted</code> yes/no, <code>plotted_as</code>; for Mix, which combinations were merged into it), and in the saved h5ad <code>obs["celltype_annotation"]</code> (all labels), <code>obs["celltype_annotation_plot"]</code> (as plotted, smaller labels as Mix) and <code>obs["celltype_combination"]</code> (the full combination, also for Mix bins). To look at labels that were not plotted, e.g.:
+<br><code>sc.pl.embedding(adata, basis="spatial", color="celltype_annotation", groups=["NK_Naive_T", "Mast_B"])</code></p>
+<div class="two">
+<div class="box"><b class="t">Statistically</b>Every niche is the top 5% of bins by definition, so every cell type starts with the same number of niche bins - the counts say nothing about how abundant a cell type is. The informative parts are the overlaps: how many bins are shared between niches (the combined labels), compared with the other combinations.</div>
+<div class="box"><b class="t">Biologically</b>Labels describe bins (25-50 µm squares), not single cells. A combined label means the niches overlap there - cell types occupy the same small area, or one mixed microenvironment. Interpret niches whose marker set is NO_SPATIAL_SIGNAL (section 2) with caution: the top 5% of a patternless score is scattered noise.</div>
+</div>
+
+<h2>5 · Co-localization of cell types</h2>
+<p><b>What it does.</b> For a pair of marker sets A and B, tests whether their depth-corrected scores are high in the same places. It is a co-localization test, not an interaction test: two cell types can share a niche because they take part in the same process, without direct contact.</p>
+<table>
+<tr><th style="width:24%">Item</th><th>Meaning</th></tr>
+<tr><td>I_AB</td><td>Bivariate spatial correlation of the two standardized, depth-corrected scores over each bin and its 8 neighbours. &gt; 0 = hotspots of A sit in or next to hotspots of B; &lt; 0 = they avoid each other. Genes shared by both panels are removed first (they would correlate the scores by construction).</td></tr>
+<tr><td>Two nulls (swap A, swap B)</td><td>Replace panel A (then B) by matched random gene sets and recompute I_AB. Both nulls must be beaten - one alone can be fooled, e.g. when a strongly expressed panel lowers every other gene after normalization.</td></tr>
+<tr><td>p_colocalized, p_segregated</td><td>Empirical p-values in each direction; the larger of the two nulls is kept. q = FDR across the pairs of the run (<code>n_tested</code>).</td></tr>
+<tr><td>Verdict</td><td><span class="v good">CO-LOCALIZED</span> / <span class="v bad">SEGREGATED</span> (significant as for PASS), NOT_DISTINGUISHABLE_FROM_RANDOM. I_AB_no_depth_correction is shown for reference.</td></tr>
+</table>
+<div class="two">
+<figure style="margin:0"><img src="img/immune_vs_neuron_colocalization_null_plot.png"><figcaption>Observed I_AB (red) against both nulls. z values are effect sizes; when a null is skewed its SD is inflated and z understates the effect - rely on p/q.</figcaption></figure>
+<figure style="margin:0"><img src="img/immune_vs_neuron_colocalization_by_distance.png"><figcaption>Co-localization by distance: I_AB in rings (same bin, touching bins, 1.5-3, 3-6, 6-12 bins) with 95% null bands.</figcaption></figure>
+</div>
+<ul>
+<li><b>By distance.</b> Strongest in the same or touching bins and fading with distance → a shared local niche. Flat across distances → the two only share a broad region or compartment. Negative at short range → local exclusion.</li>
+<li><b>Within-section control</b> (<code>colocalization_technical_controls.csv</code>, only with <code>sections.tissue_qc</code>). The same test with each section's mean removed. A pair that stays CO-LOCALIZED is not explained by one section being brighter overall; a pair that drops out was driven by section differences.</li>
+<li>Co-localization of two marker sets is only meaningful when both show spatial structure themselves (section 2).</li>
+</ul>
+
+<h2>6 · Gene-pair co-localization (optional)</h2>
+<p>Present after running <code>marqual-st gene-pairs</code> (files in <code>figures/gene_pairs/</code>). It follows up specific genes, e.g. which genes drive a cell-type co-localization. Each pair gets:</p>
+<table>
+<tr><th style="width:26%">Result</th><th>How to read it</th></tr>
+<tr><td>Bivariate Moran's I</td><td>Depth-corrected expression of gene x against the neighbourhood average of gene y, both directions (I_xy ≠ I_yx). Tested with 999 permutations of bin locations; FDR across directions. In the Overview, a significant positive I reads CO-LOCALIZED.</td></tr>
+<tr><td>Correlation</td><td>Spearman ρ (primary; robust to zero-inflated expression) and Pearson r, bin by bin, without space and without depth correction. Read by magnitude - with 10<sup>5</sup> bins tiny correlations are "significant". ρ ≈ r: broad, consistent association. ρ ≫ r: the genes share bins but their levels do not align. r ≫ ρ: driven by a few high-expression bins.</td></tr>
+<tr><td>Co-expression niche</td><td>Bins where both genes are detected vs the rest, with the same depth check, depth matching, DE tables and top-20 dot plot as section 3.</td></tr>
+</table>
+<div class="box warnbox"><b class="t">Supporting evidence only</b>The permutation null asks "any spatial association at all?", which almost any two genes pass in real tissue. It is much weaker than the matched random-gene-set null of section 5. Single genes are also very sparse. Use gene pairs to explain a cell-type result, not as the main claim.</div>
+
+<h2>7 · Other files</h2>
+<p>Every file in the folder that is not placed above - raw null draws, extra plots, files from earlier runs. Nothing is silently dropped. Result files of marker sets that are not in the current run's index table are left out of the Moran's I summary, so its FDR matches the run.</p>
+
+<h2 class="pb">Checklist before calling something a finding</h2>
+<ol>
+<li><b>Fixed family.</b> The marker sets (and pairs) were chosen before looking at results, and all of them are reported with <code>n_tested</code>.</li>
+<li><b>Effect size, not only the verdict.</b> z well above random genes (a rule of thumb: z ≥ 3), q clearly below 0.05. Results near q = 0.05, or with p within the simulation noise of 0.05, are weak evidence whatever the verdict (see "Reading a verdict").</li>
+<li><b>Not depth.</b> Depth R² small, or verdict PASS rather than DEPTH_DRIVEN; niche DE run on depth-matched bins with AUROC ≈ 0.5 after matching.</li>
+<li><b>Not technical geometry.</b> The niche does not coincide with an FOV rectangle, a tissue edge or one section (high-pass map; within-section control when sections exist).</li>
+<li><b>Biologically coherent.</b> The panel's own markers lead the DE list; the co-enriched genes make sense for the tissue; the niche's shape and place fit known anatomy.</li>
+<li><b>Consistent across sections of evidence.</b> A co-localization is supported by both sets passing section 2, by the distance profile, and - optionally - by gene pairs.</li>
+</ol>
+
+<h2>File index</h2>
+<table>
+<tr><th>File (in figures/)</th><th>Section</th><th>Content</th></tr>
+<tr><td><code>technical_qc_summary.csv</code></td><td>1</td><td>Bins, depth, sections, strays</td></tr>
+<tr><td><code>section_depth_summary.csv</code>, <code>stray_pieces.csv</code></td><td>1</td><td>Depth per section; stray pieces</td></tr>
+<tr><td><code>{celltype}_null_test_summary.csv</code></td><td>2</td><td>Observed I, null mean/SD, z, empirical p (raw and _resid), depth R²</td></tr>
+<tr><td><code>all_celltypes_moran_index_table.csv</code></td><td>2</td><td>All marker sets, q-values, n_tested, simulation-noise range of p, qc_verdict</td></tr>
+<tr><td><code>morans_i_summary_table.csv</code></td><td>2</td><td>Analytic and random-gene-set results side by side</td></tr>
+<tr><td><code>total_counts_confound_baseline.csv</code></td><td>2</td><td>Moran's I of total counts</td></tr>
+<tr><td><code>{name}_depth_check[_after_matching].csv</code></td><td>3</td><td>Depth of region vs background, AUROC</td></tr>
+<tr><td><code>{name}_de_genes.csv</code>, <code>{name}_de_top20.csv</code></td><td>3</td><td>All DE genes; top 20 up and down</td></tr>
+<tr><td><code>{name}_de_top20_dotplot.png/.pdf</code></td><td>3</td><td>Dot plot of the top up-regulated genes</td></tr>
+<tr><td><code>celltype_annotation_counts.csv</code></td><td>4</td><td>Bins per label; combinations merged into Mix</td></tr>
+<tr><td><code>{A}_vs_{B}_colocalization_summary.csv</code></td><td>5</td><td>I_AB, nulls, z, p, verdict for one pair</td></tr>
+<tr><td><code>all_pairs_colocalization_table.csv</code></td><td>5</td><td>All pairs, q-values, n_tested, verdict_fdr</td></tr>
+<tr><td><code>{A}_vs_{B}_colocalization_by_distance.csv</code></td><td>5</td><td>I_AB per distance ring</td></tr>
+<tr><td><code>colocalization_technical_controls.csv</code></td><td>5</td><td>Within-section control</td></tr>
+<tr><td><code>gene_pairs/{gene1}_{gene2}_*</code></td><td>6</td><td>Bivariate Moran's I, correlation, co-expression niche DE</td></tr>
+</table>
+<p class="small">Settings (<code>sections</code>, marker sets, <code>celltype_pairs</code>, <code>annotation</code>, <code>filters</code>) are in <code>params.csv</code> and <code>marker_sets.csv</code> (copies of the settings as run: <code>params_used.csv</code>, <code>marker_sets_used.csv</code>). Thresholds: FDR q &lt; 0.05 for every verdict; 1,000 random gene sets (<code>statistics.n_null</code>); DE adjusted p &lt; 0.05 and |log2FC| &gt; 0.5; niche = top 5% of the smoothed score.</p>
+</body></html>

@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+.ipynb_checkpoints/
+.DS_Store
+# data, results and personal run settings never go into git
+*.h5ad
+*.h5
+figures/
+results/
+*.log
+params_used.csv
+marker_sets_used.csv
+*_QCreport.html
+.env

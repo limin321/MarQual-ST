@@ -1,0 +1,127 @@
+# CI/CD for MarQual-ST
+#   every push / pull request to master (and "Run workflow" in the Actions tab):
+#     the conda environment of environment.yml -> lint -> tests -> smoke test of the command
+#   push to master, after the tests pass: build the Docker image and push it to Docker Hub as
+#     <DOCKERHUB_USERNAME>/marqual-st:latest, :sha-<commit> and :<version> (src/marqual_st/__init__.py)
+# Repository secrets (Settings -> Secrets and variables -> Actions -> New repository secret):
+#   DOCKERHUB_USERNAME  your Docker Hub user name
+#   DOCKERHUB_TOKEN     Docker Hub -> Account settings -> Personal access tokens (Read & Write)
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+  workflow_dispatch: # adds a "Run workflow" button in the Actions tab
+
+# Prevent duplicate runs on the same branch
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Stage 1: Continuous Integration (testing)
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash -el {0} # login shell: the micromamba environment is active in every step
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1 the conda environment users install (environment.yml)
+      - name: Set up Micromamba
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          environment-name: marqual-st
+          cache-environment: true
+          cache-downloads: true
+
+      # 2 the package (no dependency changes: the environment above is the tested one) + dev tools
+      - name: Install package and tools
+        run: |
+          pip install --no-deps -e .
+          pip install "pytest>=8" flake8 ruff
+
+      # 3 lint
+      - name: Lint with flake8 (syntax errors, undefined names) and ruff
+        run: |
+          flake8 src tests --count --select=E9,F63,F7,F82 --show-source --statistics
+          ruff check src tests
+
+      # 4 unit + end-to-end tests on synthetic data
+      - name: Tests
+        env:
+          MPLBACKEND: Agg
+        run: pytest -q
+
+      # 5 the command works as a user would call it
+      - name: Verify installation (smoke test)
+        run: |
+          marqual-st --help
+          marqual-st --version
+          marqual-st init-config -o "$RUNNER_TEMP/settings"
+          head -3 "$RUNNER_TEMP/settings/params.csv"
+
+  # Stage 2: Continuous Delivery (Docker build and push)
+  docker-build:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "version=$(grep -m1 '^__version__' src/marqual_st/__init__.py | cut -d '"' -f2)" >> "$GITHUB_OUTPUT"
+
+      # Log in to Docker Hub using secrets
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Generate Docker metadata
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/marqual-st
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+            type=raw,value=${{ steps.version.outputs.version }}
+
+      # Build and push the image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # faster rebuilds
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The pushed image runs
+      - name: Smoke test the image
+        run: docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/marqual-st:${{ steps.version.outputs.version }} --version

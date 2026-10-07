@@ -1,0 +1,14 @@
+.git
+.github
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+*.egg-info
+build
+dist
+tests
+tools
+docs
+*.h5ad
+**/figures

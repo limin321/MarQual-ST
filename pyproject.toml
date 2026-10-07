@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68,<81", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marqual-st"
+dynamic = ["version"]
+description = "Marker-based quality control and niche discovery for binned spatial transcriptomics (Stereo-seq, Visium HD)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Limin Chen" }]
+requires-python = ">=3.11,<3.12"
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+# Exact versions are pinned in environment.yml (conda) and used by the Docker image.
+dependencies = [
+    "scanpy==1.11.5",
+    "squidpy==1.7.0",
+    "anndata==0.12.8",
+    "numpy==2.3.5",
+    "pandas==2.2.3",
+    "scipy==1.17.0",
+    "matplotlib==3.10.8",
+    "statsmodels==0.14.6",
+    "esda==2.9.0",
+    "libpysal==4.14.1",
+    "Pillow==12.0.0",
+    "pypdfium2==5.14.0",   # report: previews of the PDF figures (no PNG files are written)
+    "setuptools<81",   # squidpy 1.7.0 -> spatialdata -> xarray_schema imports pkg_resources
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "flake8>=7"]
+
+[project.scripts]
+marqual-st = "marqual_st.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "marqual_st.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+marqual_st = ["templates/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["slow: end-to-end runs of the whole pipeline"]
+filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning", "ignore::UserWarning"]
+
+[tool.ruff]
+line-length = 125
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B905", "B028", "UP031"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]

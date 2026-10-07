@@ -1,0 +1,31 @@
+section,parameter,value,description
+run,sample,SAMPLE01,"Sample name (file names, report title)."
+run,input,/path/to/SAMPLE01.tissue.bin50.h5ad,EDIT. UNFILTERED tissue-cut input - stereo: tissue-cut Stereo-seq h5ad; visiumhd: Space Ranger binned_outputs/square_XXXum folder. A relative path is relative to the folder of this file.
+run,outdir,/path/to/results/SAMPLE01,"EDIT. Run folder, created if missing: tables + figures -> {outdir}/figures; analysis h5ad -> {outdir}/{sample}.marker_pipeline.h5ad."
+run,platform,stereo,stereo or visiumhd.
+run,analysis_h5ad,,Optional other path for the analysis h5ad (empty = {outdir}/{sample}.marker_pipeline.h5ad).
+run,panel_region_celltypes,all,"Cell types that get the any-marker region DE: all, or cell types from marker_sets.csv separated by ; (slow on large regions)."
+run,celltype_pairs,immune:neuron,"Co-localization pairs A:B separated by ; (e.g. NK:Neuron; Mast:Fibroblasts), or all for every pair; empty = none."
+run,force,false,true = continue after a data-quality STOP (exploration only; the verdict stays STOP).
+run,display_plots,false,true = also show plots interactively (notebooks).
+run,log_level,INFO,"Terminal detail: INFO (progress + one line per result), WARNING (warnings only) or DEBUG (everything). {outdir}/marqual_st.log always has everything."
+grid,bin_size,50,Distance between neighbouring bins in obsm['spatial'] units (Stereo-seq bin50: 50; not used for Visium HD).
+grid,um_per_bin,25,"Bin width in um, only labels distances (Stereo-seq bin50: 25; Visium HD 8 um: 8)."
+filters,min_counts,600,Remove bins with total counts < min_counts. 600 / 6 / 20 is the recommended Stereo-seq bin50 filter - keep it fixed across samples.
+filters,min_cells,6,Remove genes detected in < min_cells bins.
+filters,pct_mt,20,Remove bins with mitochondrial % >= pct_mt.
+quality,caution_pct_filtered,60,"Data-quality gate: CAUTION when >= this % of bins is filtered out (the run continues; warning in the report). Samples that ran well lost 2.7%, 9.8%, 23.1%."
+quality,stop_pct_filtered,80,STOP when >= this % of bins is filtered out: the run ends after technical QC (maps of the UNFILTERED bins) + report.
+quality,min_bins_kept,2000,Also STOP when fewer bins than this are left after the filter.
+sections,num_tissue,1,"Tissue sections on the chip; > 1: the N largest pieces -> obs['tissue_section'] (S1, S2 ...)."
+sections,tissue_qc,,Treat sections as a technical variable: true or false; empty = true when num_tissue > 1.
+statistics,n_null,1000,Random gene sets for the Moran's I null test and the co-localization test.
+statistics,n_null_distance,200,Random gene sets for co-localization by distance.
+statistics,seed,0,Random seed.
+niche,quantile,0.95,High-confidence niche = bins above this quantile of the smoothed score (0.95 = top 5%; 0.90 = top 10%).
+niche,top_n,20,"Top DE genes per direction (tables, dot plot)."
+annotation,min_bins,100,Combinations of cell types with fewer bins -> Mix.
+annotation,max_plot_labels,15,Plots use at most this many colors (Mix included).
+annotation,palette,,Optional colors label=color separated by ; (e.g. NK=#1f77b4; Mix=#9467bd); empty = default colors.
+gene_pairs,pairs,GNLY:ATP8A2,Optional gene-pair step (marqual-st gene-pairs): gene pairs A:B separated by ; (e.g. GNLY:ATP8A2; CD3E:CD8A).
+gene_pairs,permutations,999,Permutations for the bivariate Moran's I of the gene-pair step.
