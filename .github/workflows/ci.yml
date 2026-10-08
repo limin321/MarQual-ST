@@ -2,7 +2,8 @@
 #   every push / pull request to master (and "Run workflow" in the Actions tab):
 #     the conda environment of environment.yml -> lint -> tests -> smoke test of the command
 #   push to master, after the tests pass: build the Docker image and push it to Docker Hub as
-#     <DOCKERHUB_USERNAME>/marqual-st:latest, :sha-<commit> and :<version> (src/marqual_st/__init__.py)
+#     <DOCKERHUB_USERNAME>/marqual-st:latest and :<version> (src/marqual_st/__init__.py) - two tags of one image;
+#     bump __version__ for a release: the previous version tag then stays available unchanged
 # Repository secrets (Settings -> Secrets and variables -> Actions -> New repository secret):
 #   DOCKERHUB_USERNAME  your Docker Hub user name
 #   DOCKERHUB_TOKEN     Docker Hub -> Account settings -> Personal access tokens (Read & Write)
@@ -106,7 +107,6 @@ jobs:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/marqual-st
           tags: |
             type=raw,value=latest
-            type=sha,prefix=sha-
             type=raw,value=${{ steps.version.outputs.version }}
 
       # Build and push the image
@@ -122,6 +122,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # The pushed image runs
+      # The pushed image runs - also as an arbitrary user, as with `docker run --user "$(id -u):$(id -g)"`
+      # (loading the command imports scanpy, which needs a writable numba cache)
       - name: Smoke test the image
-        run: docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/marqual-st:${{ steps.version.outputs.version }} --version
+        run: |
+          IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/marqual-st:${{ steps.version.outputs.version }}
+          docker run --rm "$IMAGE" --version
+          docker run --rm --user 12345:12345 "$IMAGE" --version

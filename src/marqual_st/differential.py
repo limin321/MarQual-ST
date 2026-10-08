@@ -36,6 +36,14 @@ from .spatial import SpatialPlotter
 log = get_logger(__name__)
 
 
+MIN_DE_BINS = 10      # fewest bins per group (region, background) the DE is run on
+
+
+class RegionTooSmall(ValueError):
+    """The region or its background has too few bins for DE (after depth matching): the analysis of
+    this region stops (the gene-pair step marks the pair STOP and goes on with the next one)."""
+
+
 class DepthMatcher:
     """
     Keeps DE differences from being explained by sequencing depth.
@@ -114,8 +122,8 @@ class DepthMatcher:
         log.debug(f"Depth matching: kept {n_kept} region + {n_kept} background bins "
                  f"(of {int((labels == region_label).sum())} region / {int((labels == background_label).sum())} background).")
         if n_kept == 0:
-            raise ValueError("Depth matching left no bins - region and background do not overlap in depth at all.")
-        if n_kept < 50:
+            raise RegionTooSmall("depth matching left no bins - region and background do not overlap in depth.")
+        if MIN_DE_BINS <= n_kept < 50:
             log.warning(f"only {n_kept} matched bins per group. The region covers almost all bins of comparable "
                         "depth (typical for min_genes=1), so a depth-fair comparison is barely possible - "
                         "the region definition is too permissive for DE; raise min_genes/min_frac.")
@@ -134,7 +142,7 @@ class DepthMatcher:
             rows.append(self.depth_check(adata, de_col, region_label, background_label, name, stage=self.STAGES[1]))
         pd.DataFrame(rows).to_csv(self.outdir / f"{name}_depth_check.csv", index=False)
         final = rows[-1]                     # warn only if the bins the DE uses still differ in depth
-        if final["depth_biased"]:
+        if final["depth_biased"] and min(final["n_region"], final["n_background"]) >= MIN_DE_BINS:
             log.warning(f"{name}: region and background still differ in depth "
                         f"({'after matching' if depth_matched else 'no depth matching'}; AUROC "
                         f"{final['depth_auroc']:.2f}) - its DE genes partly reflect sequencing depth.")
@@ -199,6 +207,14 @@ class RegionDE(ABC):
     # ------------------------------------------------------------------ DE and outputs
     def differential_expression(self, adata: AnnData, de_col: str, spec: RegionSpec):
         region_label, background_label, name = spec.region_label, spec.background_label, spec.name
+        groups = adata.obs[de_col].astype(str)
+        n_r, n_b = int((groups == region_label).sum()), int((groups == background_label).sum())
+        if min(n_r, n_b) < MIN_DE_BINS:
+            matched = " after depth matching" if self.depth_matched else ""
+            raise RegionTooSmall(
+                f"only {n_r} {region_label} and {n_b} {background_label} bins{matched} (DE needs >= {MIN_DE_BINS} "
+                "per group). The region covers almost all bins of comparable depth, or almost none - "
+                "a depth-fair DE is not possible for this region.")
         log.debug(f"Running {self.method} test: {region_label} vs. {background_label} (layer={self.layer!r})...")
         sc.tl.rank_genes_groups(adata, groupby=de_col, groups=[region_label], layer=self.layer, method=self.method,
                                 reference=background_label, key_added=spec.key_added, use_raw=False)

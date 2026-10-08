@@ -325,7 +325,10 @@ class GenePairPipeline(_Workflow):
                 res = analysis.run(adata, genes)
                 if res is not None:
                     results["_".join(genes)] = res
-        log.info(f"Done: {len(results)} gene pair(s); outputs in {outdir}")
+        stopped = [p for p, r in results.items() if r.get("status") == "STOP"]
+        log.info(f"Done: {len(results) - len(stopped)} gene pair(s) analysed"
+                 + (f", {len(stopped)} STOPPED ({', '.join(stopped)}; reason in the report)" if stopped else "")
+                 + f"; outputs in {outdir}")
         with self.step("Report"):
             self.build_report()
         return results

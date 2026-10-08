@@ -57,6 +57,36 @@ def test_gene_pairs_and_report(pipeline_run):
     assert 'id="genepairs"' in page and "Other files" not in page
 
 
+def test_gene_pair_stop_extreme_case(pipeline_run, tmp_path, monkeypatch):
+    """A pair whose niche leaves too few bins for DE is STOPPED, the next pair still runs, the report
+    shows the STOP badge; a later normal run clears the STOP."""
+    import shutil
+    from dataclasses import replace
+
+    from marqual_st import GenePairPipeline, differential
+    pipe, _ = pipeline_run
+    out = tmp_path / "run"
+    shutil.copytree(pipe.figdir, out / "figures", ignore=shutil.ignore_patterns("gene_pairs"))
+    cfg = replace(pipe.config, outdir=str(out), analysis_h5ad=str(pipe.config.analysis_h5ad_path))
+    gp = cfg.gene_pair_dir
+    pairs = [["GNLY", "ATP8A2"], ["CD3E", "CD8A"]]
+
+    monkeypatch.setattr(differential, "MIN_DE_BINS", 10**9)            # every niche "too small"
+    res = GenePairPipeline(cfg).run(pairs=pairs)                       # no exception: both pairs STOP
+    assert {r["status"] for r in res.values()} == {"STOP"} and len(res) == 2
+    st = pd.read_csv(gp / "GNLY_ATP8A2_gene_pair_status.csv").iloc[0]
+    assert st["status"] == "STOP" and "DE needs" in st["reason"]
+    assert not list(gp.glob("GNLY_ATP8A2_spatial_colocalization.*"))   # no half results
+    page = (out / "figures" / "SYN_QCreport.html").read_text()
+    assert "Gene pair: GNLY + ATP8A2" in page and "Not analysed" in page and ">STOP<" in page
+
+    monkeypatch.setattr(differential, "MIN_DE_BINS", 10)
+    res = GenePairPipeline(cfg).run(pairs=pairs[:1])                   # normal run: STOP cleared
+    assert "status" not in res["GNLY_ATP8A2"]
+    assert not (gp / "GNLY_ATP8A2_gene_pair_status.csv").exists()
+    assert (gp / "GNLY_ATP8A2_spatial_colocalization.csv").exists()
+
+
 def test_niche_top_percent(pipeline_run, tmp_path):
     from marqual_st.differential import NicheDE
     _, adata = pipeline_run

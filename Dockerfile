@@ -25,7 +25,12 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER pyproject.toml README.md LICENSE /opt/marqu
 COPY --chown=$MAMBA_USER:$MAMBA_USER src /opt/marqual-st/src
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 RUN pip install --no-cache-dir --no-deps /opt/marqual-st && \
-    marqual-st --version
+    marqual-st --version && \
+    rm -rf /tmp/numba_cache /tmp/matplotlib && \
+    mkdir -m 1777 /tmp/numba_cache /tmp/matplotlib
+# The check above imports scanpy and creates the numba / matplotlib caches as the build user. They are
+# recreated empty and writable for every user (sticky bit, like /tmp): with `docker run --user ...`
+# numba otherwise cannot write its cache and scanpy fails to import ("no locator available").
 
 WORKDIR /data
 ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "marqual-st"]

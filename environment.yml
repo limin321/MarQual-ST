@@ -9,8 +9,8 @@
 # try to compile them. pip only adds pure-Python packages, pandas and pypdfium2, from prebuilt
 # wheels (--only-binary: it never compiles).
 # Versions: the combination the package is tested with (tests/ and CI).
-# The same environment is used by CI and the Docker image; each image tag (sha-<commit>, <version>)
-# freezes every package version of a release.
+# The same environment is used by CI and the Docker image; each version tag of the image freezes
+# every package version of that release.
 name: marqual-st
 channels:
   - conda-forge

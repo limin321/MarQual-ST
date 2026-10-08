@@ -30,6 +30,18 @@ versions follow [Semantic Versioning](https://semver.org/).
   only; on glibc 2.17 pip would compile numpy / imagecodecs and fail).
 
 ### Changed
+- Docker Hub tags: `latest` and `<version>` only (the per-commit `sha-<commit>` tag is dropped, so
+  images no longer accumulate with every push).
+- Gene-pair step, extreme case: when a pair's co-expression niche leaves fewer than 10 bins per
+  group for DE (after depth matching) - e.g. "only 1 matched bins per group", where scanpy failed with
+  "Could not calculate statistics ... only contain one sample" and the whole step stopped - the pair
+  is STOPPED (`RegionTooSmall`): its partial outputs are removed, `{pair}_gene_pair_status.csv`
+  records the reason, the terminal shows a warning, the next pair runs, and the report shows the pair
+  with a STOP badge and the reason. A later run that succeeds clears the STOP.
+- Docker image: `docker run --user ...` failed at startup ("cannot cache function ...: no
+  locator available") because the build-time check created the numba cache folder owned by the
+  build user. The cache folders are now recreated empty and writable for every user; CI also runs
+  the pushed image as an arbitrary user.
 - CI/CD (`.github/workflows/ci.yml`, "CI/CD Pipeline"): the conda environment of
   `environment.yml` (as users install it) -> flake8 + ruff -> pytest -> smoke test of the command;
   on push to master the Docker image (`<DOCKERHUB_USERNAME>/marqual-st:latest`, `:sha-<commit>`,

@@ -36,7 +36,7 @@ from statsmodels.stats.multitest import multipletests
 
 from ._logging import get_logger
 from .depth import DepthModel
-from .differential import RegionDE, RegionSpec
+from .differential import RegionDE, RegionSpec, RegionTooSmall
 
 log = get_logger(__name__)
 
@@ -102,7 +102,7 @@ class CoexpressionNicheDE(RegionDE):
                  f"active (> {self.expr_threshold} in {self.layer!r}) ---")
         log.debug(f"Isolated {n_niche} / {adata.n_obs} bins as {niche_label}.")
         if n_niche == 0:
-            raise ValueError(f"No bins have >= {k}/{n_genes} of {present} above {self.expr_threshold} in layer "
+            raise RegionTooSmall(f"no bins have >= {k}/{n_genes} of {present} above {self.expr_threshold} in layer "
                              f"{self.layer!r} - try a lower expr_threshold, a smaller min_genes/min_frac, "
                              "or a different gene combination.")
         return RegionSpec(mask_col, niche_label, self.BACKGROUND, f"{name}_coexpr", f"{name}_coexpr_degs",
@@ -239,7 +239,26 @@ class GenePairAnalysis:
             return None
         log.info(f"===== Gene pair: {' + '.join(genes)} =====")
         self.outdir.mkdir(parents=True, exist_ok=True)
-        coloc = self.colocalization(adata, genes)
-        degs, top = self.coexpression_de(adata, genes)
-        corr = self.correlation(adata, genes)
+        name = default_name(list(genes))
+        try:
+            coloc = self.colocalization(adata, genes)
+            degs, top = self.coexpression_de(adata, genes)
+            corr = self.correlation(adata, genes)
+        except RegionTooSmall as e:               # extreme case: stop this pair, keep going with the next
+            return self.stop(name, genes, str(e))
+        (self.outdir / f"{name}{self.STATUS_SUFFIX}").unlink(missing_ok=True)   # from an earlier STOP
         return {"colocalization": coloc, "coexpr_de": degs, "coexpr_de_top": top, "correlation": corr}
+
+    STATUS_SUFFIX = "_gene_pair_status.csv"
+
+    def stop(self, name: str, genes: Sequence[str], reason: str) -> dict:
+        """Mark a pair STOP: its partial outputs are removed (no half results in the report) and
+        {name}_gene_pair_status.csv records why; the report shows the pair with a STOP badge."""
+        for pattern in (f"{name}_spatial_colocalization.*", f"{name}_coexpression_correlation.*",
+                        f"{name}_coexpr_*", f"spatial_{name}_coexpr_mask.*"):     # this pair's files only
+            for f in self.outdir.glob(pattern):
+                f.unlink()
+        pd.DataFrame([{"pair": name, "genes": " + ".join(genes), "status": "STOP", "reason": reason}]).to_csv(
+            self.outdir / f"{name}{self.STATUS_SUFFIX}", index=False)
+        log.warning(f"{' + '.join(genes)}: STOP - {reason} Pair skipped; the next pair continues.")
+        return {"status": "STOP", "reason": reason}

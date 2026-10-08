@@ -191,8 +191,9 @@ Bump `__version__` in `src/marqual_st/__init__.py` (the only place it is set) an
   environment of `environment.yml` → lint (flake8, ruff) → tests (pytest) → smoke test of the
   `marqual-st` command
 * push to `master`, after the tests pass: the Docker image is built from the same environment and
-  pushed to Docker Hub as `<user>/marqual-st:latest`, `:sha-<commit>` and `:<version>`; each tag
-  freezes every package version of that build
+  pushed to Docker Hub as `<user>/marqual-st:latest` and `:<version>` (two names for one image).
+  Bump `__version__` for a release: the previous version tag stays available unchanged - cite
+  the version tag (e.g. `limin321/marqual-st:0.1.0`) for reproducibility
 
 One-time setup in GitHub → *Settings → Secrets and variables → Actions → New repository secret*:
 

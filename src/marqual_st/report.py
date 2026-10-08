@@ -37,7 +37,7 @@ log = get_logger(__name__)
 
 VERDICT_GOOD = ("PASS", "CO-LOCALIZED")
 VERDICT_BAD = ("DEPTH_DRIVEN", "MASKED_BY_DEPTH", "NO_SPATIAL_SIGNAL", "SEGREGATED", "NOT_SIGNIFICANT",
-               "LOW_MARKER_COVERAGE")
+               "LOW_MARKER_COVERAGE", "STOP")
 NAN = float("nan")
 
 
@@ -435,6 +435,7 @@ class ReportBuilder:
 
     GENE_PAIR_DIR = "gene_pairs"
     GENE_PAIR_SUFFIX = "_spatial_colocalization.csv"
+    GENE_PAIR_STATUS = "_gene_pair_status.csv"     # written for a pair that was STOPPED
     NAV = [("overview", "Overview"), ("qc", "Technical QC"), ("moran", "Spatial structure"),
            ("de", "Niches & DE"), ("annotation", "Annotation"), ("coloc", "Co-localization"),
            ("genepairs", "Gene pairs"), ("params", "Run parameters"), ("other", "Other files")]
@@ -760,7 +761,19 @@ class ReportBuilder:
         files = FileIndex(gp, prefix=f"{self.GENE_PAIR_DIR}/")
         h = Html(files, self.embedder, self.self_contained, self.previewer)
         blocks = []
-        for p in sorted(files.stems(self.GENE_PAIR_SUFFIX)):
+        stopped = set(files.stems(self.GENE_PAIR_STATUS))
+        for p in sorted(set(files.stems(self.GENE_PAIR_SUFFIX)) | stopped):
+            if p in stopped:                        # pair stopped: badge + reason, no results
+                st = first_row(read_csv(gp, f"{p}{self.GENE_PAIR_STATUS}"), "pair", p)
+                files.get(f"{p}{self.GENE_PAIR_STATUS}")
+                reason = st.get("reason", "") if st else ""
+                blocks.append(h.sub(f"Gene pair: {p.replace('_', ' + ')}", [
+                    f'<div class="block wide"><p><b>{h.badge("STOP")} Not analysed.</b> {esc(reason)}</p>'
+                    f'<p class="note">The co-expression niche of this pair cannot be compared with the rest of '
+                    f'the tissue on depth-matched bins, so no results are reported for it. Status: '
+                    f'<a href="{files.href(p + self.GENE_PAIR_STATUS)}">{esc(p + self.GENE_PAIR_STATUS)}</a>.</p>'
+                    f'</div>'], f'{h.badge("STOP")} too few bins for a depth-fair comparison'))
+                continue
             de_full = files.get(f"{p}_coexpr_de_genes.csv")
             bv = read_csv(gp, f"{p}{self.GENE_PAIR_SUFFIX}")
             summ = ""
