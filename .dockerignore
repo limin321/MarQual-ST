@@ -12,3 +12,4 @@ tools
 docs
 *.h5ad
 **/figures
+benchmark/

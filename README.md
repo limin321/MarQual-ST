@@ -1,17 +1,16 @@
 # MarQual-ST
 
-**Mar**ker-based **Qual**ity control and niche discovery for binned **S**patial **T**ranscriptomics
-(Stereo-seq, Visium HD).
+**Mar**ker-based **Quali**tative **Qual**ity control framework for high-resolution binned (or single-cell level) **S**patial **T**ranscriptomics
+(Stereo-seq, Visium HD) data.
 
 Low-quality spatial data (few reads per bin, strong technical depth variation) often cannot be
 clustered: clusters mostly follow sequencing depth. MarQual-ST starts from known marker gene sets
-and asks:
+and serves:
 
-1. **Qualitative QC** – does each marker set show real spatial structure, beyond random genes of
+2. **Qualitative QC** – does each marker set show real spatial structure, beyond random genes of
    matched expression and beyond sequencing depth? (`qc_verdict`: PASS / DEPTH_DRIVEN /
-   MASKED_BY_DEPTH / NO_SPATIAL_SIGNAL)
-2. **Niche discovery** – where is each marker set enriched, which genes mark those places
-   (depth-matched DE), which bins hold several cell types, and are two cell types co-localized?
+   MASKED_BY_DEPTH / NO_SPATIAL_SIGNAL). It performs six steps: technical QC, spatial niche discovery, depth-matched DE, cell-type annotation, cell types co-localization, optional gene-pairs co-localization.
+2. **Low-quality ST analysis workflow** – When ST data fail the standard analysis workflow, when to abandon the data? or still any biological signal exist and how to extract them?
 
 Every run ends with one self-contained HTML report, `{sample}_QCreport.html`.
 How to read it: [`docs/report_guide.pdf`](docs/report_guide.pdf).
@@ -61,13 +60,15 @@ to you. On HPC with Singularity/Apptainer:
 A run needs two CSV files: **`params.csv`** (settings) and **`marker_sets.csv`** (marker genes).
 
 ```bash
-marqual-st init-config -o my_run          # writes my_run/params.csv + my_run/marker_sets.csv to edit
+# marqual-st init-config -o my_run          # writes my_run/params.csv + my_run/marker_sets.csv to edit
 marqual-st validate   -p my_run/params.csv -m my_run/marker_sets.csv   # check both, and the paths
 marqual-st run        -p my_run/params.csv -m my_run/marker_sets.csv   # -> {outdir}/figures/{sample}_QCreport.html
 marqual-st gene-pairs -p my_run/params.csv -m my_run/marker_sets.csv   # optional gene-pair step, report rebuilt
 marqual-st gene-pairs -p ... -m ... --pair GNLY ATP8A2 --pair CD3E CD8A
 marqual-st annotate   -p ... -m ...       # re-annotate the saved h5ad (new min_bins / palette)
 marqual-st report     -p my_run/params.csv  # rebuild the report only
+
+# Note, the missing part in outdir will be automatically created when provided in params.csv
 ```
 
 From Python / a notebook:
@@ -84,7 +85,7 @@ GenePairPipeline(pipe.config).run()
 
 One row per cell type: the cell-type name, then its marker genes, one gene per cell. No header
 (a first row starting with `celltype` / `cell_type` is skipped). Empty cells are ignored, so rows
-can have different lengths; a gene listed twice in one set is kept once.
+can have different lengths; a gene listed twice in one set is kept once. An example:
 
 ```
 Neuron,GPC5,CNTN5,CPNE4,RBFOX3,TUBB3,MAP2,UCHL1,NEFL,SNAP25,SYT1
@@ -111,7 +112,7 @@ and settings given twice are errors that name the line.
 |---|---|
 | `run` | `sample`, `input` (UNFILTERED tissue-cut input: `stereo` h5ad, or `visiumhd` Space Ranger `square_XXXum` folder), `outdir`, `platform`, `analysis_h5ad`; `panel_region_celltypes` (`all` or `NK; Mast`); `celltype_pairs` (`NK:Neuron; Mast:Fibroblasts` or `all`); `force`, `display_plots`, `log_level` |
 | `grid` | `bin_size`, `um_per_bin` |
-| `filters` | `min_counts`, `min_cells`, `pct_mt` (keep the Stereo-seq bin50 cutoffs 600 / 6 / 20 fixed) |
+| `filters` | `min_counts`, `min_cells`, `pct_mt` (keep the Stereo-seq bin50 cutoffs 600 / 6 / 20 fixed). You should change the cutoffs based-on bin-size. |
 | `quality` | data-quality gate on the share of bins the filter removes: CAUTION at ≥ `caution_pct_filtered` (60 %), STOP at ≥ `stop_pct_filtered` (80 %) or < `min_bins_kept` (2,000) bins kept - the run ends after technical QC + report (exit code 3); `run,force,true` continues after STOP |
 | `sections` | `num_tissue`, `tissue_qc` |
 | `statistics` | random gene sets for the null tests (`n_null`, `n_null_distance`), `seed` |
@@ -195,12 +196,11 @@ Bump `__version__` in `src/marqual_st/__init__.py` (the only place it is set) an
   Bump `__version__` for a release: the previous version tag stays available unchanged - cite
   the version tag (e.g. `limin321/marqual-st:0.1.0`) for reproducibility
 
-One-time setup in GitHub → *Settings → Secrets and variables → Actions → New repository secret*:
+## Scientific Registry
 
-| secret | value |
-|---|---|
-| `DOCKERHUB_USERNAME` | your Docker Hub user name |
-| `DOCKERHUB_TOKEN` | Docker Hub → *Account settings → Personal access tokens* → new token with *Read & Write* |
+* **RRID:** [RRID:SCR_029119](https://scicrunch.org)
+* **bio.tools ID:** [biotools:marqual-st](https://bio.tools)
+* **DOI:** https://doi.org/10.5281/zenodo.23227164
 
 ## License
 

@@ -6,6 +6,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- benchmark, but ignored by Docker image creating.
 - Data-quality gate (`quality`, `force` in the config; `DataQualityGate`): share of bins the
   standard filter removes -> PASS / CAUTION (>= 60 %) / STOP (>= 80 % or < 2,000 bins kept).
   STOP ends the run after technical QC on the unfiltered bins and the report (exit code 3);
@@ -30,6 +31,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   only; on glibc 2.17 pip would compile numpy / imagecodecs and fail).
 
 ### Changed
+- Update README.txt
 - Docker Hub tags: `latest` and `<version>` only (the per-commit `sha-<commit>` tag is dropped, so
   images no longer accumulate with every push).
 - Gene-pair step, extreme case: when a pair's co-expression niche leaves fewer than 10 bins per
